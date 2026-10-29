@@ -1,86 +1,88 @@
-# Что происходит, когда вы вводите `google.com` в браузере и нажимаете Enter?
+# What Happens When You Type `google.com` into Your Browser and Press Enter?
 
-Попробуем ответить на этот, казалось бы, элементарный вопрос настолько подробно, насколько это возможно. Не будем перескакивать сразу к HTTP-запросу: начнём с клавиатуры, пройдём через операционную систему, сетевое оборудование и сервер, а закончим моментом, когда готовая страница появится на экране.
+**English | [Русский](README_RU.md)**
 
-## Содержание
+It looks like the simplest action in the world: type an address and press Enter. Yet that single keystroke crosses several layers of hardware, operating-system code, networking infrastructure, server software, and graphics processing before the page appears on your screen.
 
-- [Нажатие клавиши `g`](#нажатие-клавиши-g)
-- [Клавиша Enter доходит до упора](#клавиша-enter-доходит-до-упора)
-- [Возникает аппаратное прерывание](#возникает-аппаратное-прерывание)
-- [Windows отправляет событие `WM_KEYDOWN`](#windows-отправляет-событие-wm_keydown)
-- [macOS создаёт событие `NSEvent`](#macos-создаёт-событие-nsevent)
-- [GNU/Linux обрабатывает нажатие клавиши](#gnulinux-обрабатывает-нажатие-клавиши)
-- [Браузер разбирает адрес](#браузер-разбирает-адрес)
-- [Адрес сайта или поисковый запрос?](#адрес-сайта-или-поисковый-запрос)
-- [Преобразование Unicode в имени хоста](#преобразование-unicode-в-имени-хоста)
-- [Проверка HSTS](#проверка-hsts)
-- [Определение IP-адреса через DNS](#определение-ip-адреса-через-dns)
-- [ARP: поиск MAC-адреса](#arp-поиск-mac-адреса)
-- [Создание сокета и TCP-соединения](#создание-сокета-и-tcp-соединения)
-- [Установка защищённого соединения TLS](#установка-защищённого-соединения-tls)
-- [Что происходит при потере пакета](#что-происходит-при-потере-пакета)
-- [Протокол HTTP](#протокол-http)
-- [Обработка запроса веб-сервером](#обработка-запроса-веб-сервером)
-- [Что происходит внутри браузера](#что-происходит-внутри-браузера)
-- [Архитектура браузера](#архитектура-браузера)
-- [Разбор HTML](#разбор-html)
-- [Обработка CSS](#обработка-css)
-- [Формирование изображения страницы](#формирование-изображения-страницы)
-- [Работа графического процессора](#работа-графического-процессора)
-- [Оконный менеджер и вывод на экран](#оконный-менеджер-и-вывод-на-экран)
-- [Что происходит после загрузки](#что-происходит-после-загрузки)
+Let's trace the journey, starting not with HTTP but with the keyboard itself. The exact path depends on the device, operating system, browser, network, and protocols negotiated along the way.
 
-## Нажатие клавиши `g`
+## Contents
 
-Вы устанавливаете курсор в адресную строку браузера и нажимаете `g`. Ещё до завершения ввода браузер может показать выпадающий список подсказок.
+- [Pressing the `g` key](#pressing-the-g-key)
+- [Pressing Enter](#pressing-enter)
+- [An interrupt reaches the CPU](#an-interrupt-reaches-the-cpu)
+- [Windows delivers `WM_KEYDOWN`](#windows-delivers-wm_keydown)
+- [macOS delivers an `NSEvent`](#macos-delivers-an-nsevent)
+- [GNU/Linux processes keyboard input](#gnulinux-processes-keyboard-input)
+- [The browser parses the address](#the-browser-parses-the-address)
+- [Address or search query?](#address-or-search-query)
+- [Unicode and domain names](#unicode-and-domain-names)
+- [Checking HSTS](#checking-hsts)
+- [Resolving an IP address with DNS](#resolving-an-ip-address-with-dns)
+- [Finding the next hop with ARP](#finding-the-next-hop-with-arp)
+- [Creating a socket and TCP connection](#creating-a-socket-and-tcp-connection)
+- [Securing the connection with TLS](#securing-the-connection-with-tls)
+- [Dealing with lost packets](#dealing-with-lost-packets)
+- [Speaking HTTP](#speaking-http)
+- [Handling the request on a web server](#handling-the-request-on-a-web-server)
+- [What happens inside the browser](#what-happens-inside-the-browser)
+- [Browser architecture](#browser-architecture)
+- [Parsing HTML](#parsing-html)
+- [Processing CSS](#processing-css)
+- [Rendering the page](#rendering-the-page)
+- [The graphics processor](#the-graphics-processor)
+- [The window compositor and display](#the-window-compositor-and-display)
+- [After the page loads](#after-the-page-loads)
 
-Предложения зависят от браузера и его настроек: истории посещений, закладок, уже открытых вкладок, ранее введённых адресов, поисковой системы и режима приватного просмотра. По мере ввода `google.com` поисковые и адресные подсказки пересчитываются. Браузер иногда угадывает нужный сайт раньше, чем вы закончите печатать.
+## Pressing the `g` key
 
-Каждая клавиша запускает цепочку событий: аппаратное обнаружение нажатия, передачу данных драйверу, доставку события приложению, изменение поля ввода, возможные обращения к истории и сети, а также перерисовку интерфейса.
+You focus the browser's address bar and press `g`. Even before you finish typing, a suggestion dropdown may appear. Depending on settings, the browser might consult your history, bookmarks, open tabs, saved addresses, or a search provider. A private-browsing session may apply different rules.
 
-## Клавиша Enter доходит до упора
+With every subsequent character of `google.com`, the browser can recompute suggestions and redraw parts of its interface. It may guess your intended destination before the final character arrives.
 
-Вы нажимаете `Enter`. Контакты переключателя под клавишей замыкаются; в ёмкостной клавиатуре изменение состояния определяется иначе. Контроллер клавиатуры сканирует матрицу клавиш и определяет, какой переключатель изменил состояние.
+Each keypress is already a small pipeline: hardware detects a change, a controller sends input data, the operating system dispatches an event, an application updates its state, and the display is refreshed. Some steps can also involve disk or network access.
 
-Механические контакты при замыкании могут несколько раз быстро размыкаться и замыкаться. Чтобы один удар не превратился в серию нажатий, контроллер применяет подавление дребезга (*debouncing*).
+## Pressing Enter
 
-Затем физическое нажатие кодируется в код клавиши. Здесь важно различать **скан-код**, **USB HID usage code**, виртуальный код клавиши операционной системы и символ текста: это не одно и то же. `Enter` обычно не вставляет символ в адресную строку, а выполняет действие — отправляет введённый адрес на обработку.
+You press `Enter`. On a typical mechanical keyboard, a switch closes an electrical circuit. Capacitive and optical switches detect the change differently. The keyboard's microcontroller scans its key matrix to identify the changed key.
 
-### Если клавиатура подключена по USB
+Physical switch contacts can briefly bounce between open and closed. Firmware typically uses *debouncing* to avoid treating one press as several.
 
-1. Контроллер USB предоставляет питание устройству (обычно 5 В на линии VBUS).
-2. Микроконтроллер клавиатуры формирует HID-отчёт с состояниями клавиш. В USB-терминологии отчёты передаются через конечные точки (*endpoints*).
-3. Хост-контроллер компьютера обслуживает соответствующую конечную точку по расписанию опроса, установленному для устройства. Интервал не обязательно равен 10 мс: он зависит от типа и скорости USB-устройства и его дескрипторов.
-4. USB-пакеты передаются по физическому интерфейсу. Для USB 2.0 используются линии `D+` и `D−`; скорость определяется режимом устройства — Low Speed, Full Speed или High Speed. HID-клавиатура не обязана работать только в Low Speed.
-5. USB-контроллер компьютера и драйвер HID передают данные подсистеме ввода операционной системы.
+The keyboard then encodes the event. A physical scan code, a USB HID usage, a platform-specific virtual key code, and a printable character are distinct concepts. `Enter` usually signals an action rather than inserting a character into the address bar.
 
-### Если используется Bluetooth-клавиатура
+### USB keyboard
 
-Радиомодуль передаёт HID-события по Bluetooth. Стек Bluetooth на компьютере принимает данные, расшифровывает их при необходимости и передаёт в общую подсистему клавиатурного ввода.
+1. The USB interface supplies power to the device, normally through a 5 V VBUS connection.
+2. The keyboard controller produces a HID report describing which keys are pressed.
+3. The host controller schedules transfers to the device's interrupt endpoint. The interval depends on its descriptors, USB speed, and host behavior; it is not universally 10 milliseconds.
+4. On USB 2.0, data travels over the `D+` and `D−` lines. Devices may use low, full, or high speed, depending on their hardware.
+5. The host controller and HID driver expose the new state to the operating system's input subsystem.
 
-### Если используется экранная клавиатура
+### Bluetooth keyboard
 
-Палец изменяет электрические характеристики области ёмкостного сенсорного экрана. Контроллер определяет координаты прикосновения; драйвер передаёт событие операционной системе. Экранная клавиатура сопоставляет координаты с кнопкой `Enter` и отправляет приложению программное событие нажатия.
+The keyboard sends input reports over a Bluetooth HID transport. The computer's Bluetooth stack receives them, applies any required decryption, and forwards the resulting events to the normal input subsystem.
 
-## Возникает аппаратное прерывание
+### On-screen keyboard
 
-В случае традиционных аппаратных клавиатур контроллер может уведомить процессор о новых данных посредством линии запроса прерывания — `IRQ` (*Interrupt Request*).
+For a touchscreen, the touch controller detects changes in the capacitive sensor grid and reports coordinates. The operating system delivers a touch event, and the software keyboard maps the touched region to its `Enter` action.
 
-Контроллер прерываний сопоставляет запрос с вектором. На x86 процессор использует таблицу дескрипторов прерываний — `IDT` (*Interrupt Descriptor Table*), чтобы найти обработчик, назначенный ядром операционной системы.
+## An interrupt reaches the CPU
 
-Когда процессор принимает прерывание, он сохраняет необходимое состояние выполнения и передаёт управление обработчику. Драйвер считывает или обрабатывает поступившие данные и передаёт их подсистеме ввода.
+Hardware controllers often notify the processor that work is available by generating an *interrupt request*, or IRQ. An interrupt controller routes the request to an appropriate handler.
 
-Для USB-клавиатуры это не означает отдельное классическое IRQ на каждую клавишу: уведомления от USB-контроллера и обмен по USB устроены иначе. Операционная система всё равно получает итоговое событие нажатия.
+On x86, the operating system sets up an Interrupt Descriptor Table (`IDT`). When the CPU accepts an interrupt, it preserves the required execution state and transfers control to the kernel's handler. A driver processes the controller's data and makes the input event available to higher layers.
 
-## Windows отправляет событие `WM_KEYDOWN`
+This is deliberately simplified: a USB keypress does **not** require one traditional keyboard IRQ per key. USB controller interrupts, scheduled transfers, and driver processing work differently from the legacy PS/2 path.
 
-В Windows HID-устройства обслуживаются драйверами стека ввода. Например, `kbdhid.sys` работает с USB HID-клавиатурами, а `kbdclass.sys` объединяет ввод от клавиатур в общий класс устройств.
+The important result is the same: the operating system learns that Enter was pressed.
 
-После обработки скан-кодов событие попадает в оконную подсистему. Для обычного нажатия клавиши в очередь сообщений соответствующего потока может поступить `WM_KEYDOWN`.
+## Windows delivers `WM_KEYDOWN`
 
-Клавиша Enter в Win32 представляется виртуальным кодом `VK_RETURN` (`0x0D`). Приложение извлекает события из очереди, например с помощью `GetMessage` или `PeekMessage`, и передаёт их оконной процедуре через `DispatchMessage`.
+Windows handles keyboard devices through its input-driver stack. For example, `kbdhid.sys` can process USB HID keyboard input, while `kbdclass.sys` provides a common keyboard device class.
 
-Упрощённо обработчик может выглядеть так:
+After the system processes the relevant key data, a traditional Win32 application may receive a `WM_KEYDOWN` message in its thread's message queue. The virtual key code for Enter is `VK_RETURN` (`0x0D`).
+
+A simple window procedure might look like this:
 
 ```c
 case WM_KEYDOWN:
@@ -90,235 +92,205 @@ case WM_KEYDOWN:
     break;
 ```
 
-Поле `lParam` содержит дополнительные сведения о событии: повторных нажатиях, аппаратном скан-коде, признаке расширенной клавиши и предыдущем состоянии клавиши. Реальный браузер использует собственную систему обработки ввода поверх оконных событий, поэтому пример показывает лишь принцип.
+The `lParam` field can describe repeat counts, scan codes, and prior key state. Real browsers add their own event dispatching and UI logic on top of the native platform messages; the example only illustrates the basic idea.
 
-## macOS создаёт событие `NSEvent`
+Applications often retrieve and dispatch messages through functions such as `GetMessage`, `PeekMessage`, and `DispatchMessage`.
 
-В macOS сигнал от клавиатуры проходит через подсистемы устройств ввода и графического интерфейса. Данные обрабатываются драйверами HID и доставляются оконной системе.
+## macOS delivers an `NSEvent`
 
-Приложение получает событие клавиатуры как `NSEvent`, например событие типа `keyDown`. Система определяет активное окно и элемент интерфейса, которому предназначается ввод. Цикл обработки событий приложения передаёт событие соответствующему обработчику.
+On macOS, the HID and windowing subsystems process keyboard input and deliver it to the active application. At the Cocoa level, keyboard events can appear as `NSEvent` instances of type `keyDown`.
 
-Если фокус находится в адресной строке браузера, нажатие Enter запускает переход по введённому адресу.
+The system determines which window and control have focus. The application's event loop routes the event to the relevant responder. If the address bar has focus, Enter triggers navigation.
 
-## GNU/Linux обрабатывает нажатие клавиши
+## GNU/Linux processes keyboard input
 
-В Linux события от устройства попадают в подсистему ввода ядра, часто через интерфейс `evdev` (`/dev/input/event*`).
+Linux device drivers feed events into the kernel input subsystem, commonly exposed to user space through `evdev` devices such as `/dev/input/event*`.
 
-В графической сессии на базе X11 X-сервер получает события клавиатуры, применяет раскладку и правила сопоставления кодов, а затем доставляет их нужному клиенту. При использовании Wayland маршрутизацией событий занимается композитор; Xorg при этом может вообще не участвовать.
+The path then depends on the graphical environment:
 
-Графический стек определяет приложение и элемент, имеющие фокус ввода. Браузер получает событие Enter и начинает обработку адресной строки.
+- With **X11**, an X server processes input, keyboard mappings, and event delivery to clients.
+- With **Wayland**, a compositor handles input routing and focus. Xorg may not be involved at all.
 
-## Браузер разбирает адрес
+Once the browser receives the focused key event, it asks its navigation code to interpret the address bar's content.
 
-К этому моменту браузер располагает строкой:
+## The browser parses the address
 
-```text
-google.com
-```
+The browser doesn't send raw keystrokes directly to a website. It first interprets the address bar as a potential URL, resolves shortcuts or search behavior, and constructs a navigation request.
 
-Она не содержит явно указанной схемы URL. Браузер решает, что пользователь имел в виду адрес сайта, а не поисковую фразу, и формирует адрес для навигации.
-
-У типичного URL есть несколько составляющих:
+A URL has several components:
 
 ```text
-https://www.google.com/search?q=example#results
-└─┬─┘   └────┬─────┘└──┬──┘ └───┬───┘ └──┬──┘
-схема        хост     путь    запрос   фрагмент
+scheme://userinfo@host:port/path?query#fragment
 ```
 
-Схема определяет протокол или способ обращения к ресурсу. Хост указывает нужный сервер, путь — конкретный ресурс, строка запроса передаёт дополнительные параметры, а фрагмент обычно используется браузером для перехода к части документа.
+For `https://google.com/`, the scheme is `https`, the host is `google.com`, the default HTTPS port is 443, and the path is `/`.
 
-## Адрес сайта или поисковый запрос?
+The fragment, when present, is generally processed by the browser and not transmitted as part of the HTTP request target. A real parser also handles escaping, normalization, special characters, and many edge cases specified by URL parsing rules.
 
-Адресная строка современных браузеров работает одновременно как поле для URL и поисковая строка. В зависимости от введённого текста браузер выбирает действие:
+## Address or search query?
 
-- `google.com` распознаётся как доменное имя;
-- `как работает dns` обычно передаётся поисковой системе;
-- `http://example.com/` явно задаёт URL;
-- выражения, локальные адреса и неполные домены могут обрабатываться по дополнительным правилам.
+Modern address bars double as search fields. A space-containing phrase often becomes a search query, while a recognizable hostname or URL generally triggers navigation.
 
-Если строка распознана как поисковый запрос, браузер формирует URL выбранной поисковой системы и кодирует текст запроса в его параметрах.
+The browser uses parsing rules and heuristics to make the distinction. Depending on settings, typing a bare word may search the web, try an intranet hostname, or produce a suggestion. `google.com` is normally recognized as a domain.
 
-## Преобразование Unicode в имени хоста
+A selected suggestion may change the destination. The browser can also reuse known navigation data, existing connections, cached redirects, or stored security policies.
 
-Доменные имена могут содержать не только латинские буквы. Например, русскоязычные домены преобразуются в ASCII-совместимое представление с помощью IDNA и Punycode.
+## Unicode and domain names
 
-В случае `google.com` такого преобразования почти не заметно: имя уже состоит из ASCII-символов. Для международных доменов оно необходимо, чтобы DNS-запрос можно было передать в стандартном формате.
+Domain names can contain internationalized characters. DNS itself works with an ASCII-compatible form of these labels, so applications use the Internationalized Domain Names in Applications (IDNA) processing rules.
 
-Не путайте преобразование доменного имени с кодированием пути URL и параметров запроса: для них применяются другие правила.
+For example, a Unicode domain label may be converted to an `xn--` Punycode representation before DNS lookup. This is distinct from percent-encoding characters in a URL path.
 
-## Проверка HSTS
+Browsers also apply spoofing and display policies: some internationalized hostnames are shown in Unicode, while others are deliberately displayed in their ASCII-compatible form.
 
-Браузер определяет, необходимо ли сразу использовать HTTPS. Один из механизмов — `HSTS` (*HTTP Strict Transport Security*).
+For `google.com`, no internationalized-label conversion is necessary.
 
-Если домен присутствует в предварительно загруженном HSTS-списке или браузер уже сохранил действующую политику сайта, HTTP-подключение заменяется HTTPS до отправки небезопасного запроса.
+## Checking HSTS
 
-Даже без HSTS современные браузеры часто пытаются использовать HTTPS по умолчанию. Конкретное поведение зависит от настроек и версии браузера.
+Before opening a connection, the browser checks whether the hostname is covered by an HTTP Strict Transport Security (HSTS) policy.
 
-HSTS защищает от сценариев, в которых злоумышленник пытается заставить клиента перейти с зашифрованного соединения на незашифрованное. После выбора HTTPS браузеру нужно узнать IP-адрес сервера.
+HSTS instructs a browser to use HTTPS for a site for a specified period. Policies can have been learned from an earlier response or included in a preload list. If a policy applies, a request that would otherwise use HTTP is upgraded to HTTPS before contacting the server.
 
-## Определение IP-адреса через DNS
+For an explicitly entered `https://` URL, the connection is already secure by construction. HSTS still affects how the browser handles possible insecure attempts and certificate failures.
 
-DNS (*Domain Name System*) переводит доменные имена в записи, среди которых могут быть IPv4-адреса типа `A` и IPv6-адреса типа `AAAA`.
+## Resolving an IP address with DNS
 
-### Сначала проверяются локальные источники
+A hostname is useful to humans; network packets need destination addresses. The browser therefore needs an IP address for `google.com`, unless a usable address is already known.
 
-1. Браузер проверяет собственные механизмы кэширования и уже известные записи.
-2. Системный резолвер может использовать кэш операционной системы.
-3. Учитываются локальные правила разрешения имён и файл `hosts`.
-4. Если адрес всё ещё неизвестен, выполняется DNS-запрос к настроенному резолверу.
+### Local sources first
 
-Типичные пути к файлу `hosts`:
+The browser or operating system may consult:
+
+1. A browser DNS or host cache.
+2. The operating system's resolver cache.
+3. Local host overrides, such as a hosts file.
+4. An enterprise or network-specific resolver configuration.
+
+The precise ordering is platform-dependent. A browser using DNS over HTTPS may follow a different route from the operating system's conventional resolver.
+
+Cached DNS answers have a time-to-live (TTL), which constrains how long they should be reused. The browser may request `A` records for IPv4 and `AAAA` records for IPv6.
+
+### If the resolver has no cached answer
+
+A recursive resolver can walk the DNS hierarchy:
 
 ```text
-Windows: C:\Windows\System32\drivers\etc\hosts
-Linux:   /etc/hosts
-macOS:   /etc/hosts
+Client / stub resolver
+          |
+          v
+Recursive DNS resolver
+          |
+          +--> Root name servers
+          |           |
+          |           v
+          +--> .com authoritative infrastructure
+          |           |
+          |           v
+          +--> Authoritative DNS for google.com
+          |
+          v
+       DNS answer
 ```
 
-DNS-резолвером может быть домашний роутер, сервер провайдера, корпоративный DNS или публичная служба. В зависимости от настроек запрос может выполняться по обычному DNS, DNS-over-TLS или DNS-over-HTTPS.
+The iterative details depend on cached delegations and records. A resolver typically doesn't query every level from scratch for every lookup.
 
-### Если записи нет в кэше DNS-сервера
+Traditional DNS queries often use UDP port 53, with TCP available when needed. Other deployments may use DNS over TLS (DoT) or DNS over HTTPS (DoH). DNS messages can include extensions such as EDNS; DNSSEC, when deployed and validated, provides authenticity of DNS data rather than transport encryption.
 
-Рекурсивный резолвер может обратиться последовательно к нескольким участникам DNS:
+Large services can return multiple addresses, use load balancing, and choose answers based partly on network topology. The returned address need not identify one unique physical machine.
 
-1. **Корневой сервер** сообщает, где искать серверы зоны верхнего уровня `.com`.
-2. **Сервер зоны `.com`** указывает авторитативные серверы для `google.com`.
-3. **Авторитативный DNS-сервер** возвращает нужные записи или сведения для дальнейшего разрешения.
-4. Резолвер передаёт ответ клиенту и кэширует его на время, определённое параметрами записи и политикой кэширования.
+## Finding the next hop with ARP
 
-Это упрощённый сценарий: ответы могут находиться в кэше, включать CNAME-переходы, а реальные резолверы используют дополнительные оптимизации.
+Once the destination IP is known, the operating system chooses an outgoing route. If the destination is outside the local network, the next hop is usually a default gateway.
 
-Обычный DNS часто использует UDP-порт `53`; TCP применяется при необходимости, в том числе при некоторых больших ответах. Защищённые варианты DNS работают иначе.
+On an IPv4 Ethernet network, the sender needs the next hop's MAC address. It first checks its neighbor or ARP cache. If there is no usable entry, it broadcasts an ARP request asking who owns the next-hop IPv4 address.
 
-Прежде чем отправить пакет в локальную сеть, компьютеру нужно понять, как доставить его ближайшему сетевому узлу.
+A device with the requested address responds with its MAC address. The sender can then build an Ethernet frame addressed to that next hop.
 
-## ARP: поиск MAC-адреса
+For IPv6, *Neighbor Discovery* (NDP) fills a similar role rather than ARP. Not all networks use Ethernet, so a MAC-address lookup is not a universal prerequisite for every Internet connection.
 
-В IPv4-сети Ethernet протокол `ARP` (*Address Resolution Protocol*) помогает сопоставить IPv4-адрес устройства с его MAC-адресом.
+### The local equipment
 
-Сначала операционная система смотрит таблицу маршрутизации: адрес назначения находится в локальной подсети или пакет нужно направить шлюзу по умолчанию? Затем проверяется соседский кэш.
+The Ethernet frame may pass through a switch and router. A switch forwards frames within a layer-2 domain using its MAC address table. A router examines network-layer destination addresses and forwards packets between networks.
 
-Если MAC-адрес следующего узла неизвестен, отправляется широковещательный ARP-запрос.
+A home router may perform source NAT for IPv4, rewriting addresses and ports while tracking connection state. Firewalls can inspect or filter packets. The next router repeats forwarding until the traffic reaches the destination network.
+
+### Sending the DNS query
+
+If DNS resolution required network communication, a broadly similar local-delivery path already occurred for those DNS packets. DNS may use a different destination and transport from the eventual HTTPS connection.
+
+In other words, obtaining the web server's address can itself involve several frames, packets, routing decisions, and protocol exchanges.
+
+## Creating a socket and TCP connection
+
+With an address selected, the browser asks the operating system to establish a connection, often through a socket API.
+
+For HTTPS over TCP, a new connection commonly begins with the three-way handshake:
 
 ```text
-ARP Request
-  Sender MAC:  aa:bb:cc:dd:ee:01
-  Sender IP:   192.168.1.10
-  Target MAC:  00:00:00:00:00:00
-  Target IP:   192.168.1.1
-
-Ethernet destination: ff:ff:ff:ff:ff:ff
+Client                                 Server
+  | -------- SYN --------------------> |
+  | <------- SYN + ACK --------------- |
+  | -------- ACK --------------------> |
+  |                                    |
+  |       TCP connection ready         |
 ```
 
-### Что делает сетевое оборудование
+TCP uses sequence numbers, acknowledgments, flow control, and congestion-control algorithms. The source port is normally an ephemeral local port; the destination port for HTTPS is typically 443.
 
-- **Прямое соединение:** целевое устройство получает запрос и, если IP принадлежит ему, отправляет ARP-ответ.
-- **Концентратор (hub):** повторяет сигнал на остальных портах; устройства сами решают, относится ли к ним запрос.
-- **Коммутатор (switch):** рассылает широковещательный кадр в пределах соответствующего широковещательного домена/VLAN. Таблица MAC-адресов используется прежде всего для доставки *одноадресных* кадров.
-- **Маршрутизатор:** отвечает за свой адрес интерфейса, если запрос адресован ему; обычные ARP-широковещания не маршрутизируются через него в другую подсеть.
+The operating system may use a previously established connection rather than starting a new one. Browsers pool and reuse connections where protocol and security constraints permit.
 
-Ответ содержит нужное соответствие:
+There is also an important alternative: **HTTP/3 uses QUIC over UDP**, not TCP. QUIC includes its own reliable-stream delivery, congestion control, and cryptographic handshake behavior. The TCP-and-TLS story below describes the common HTTPS-over-TCP case, not every modern navigation.
+
+## Securing the connection with TLS
+
+For HTTPS over TCP, the browser and server negotiate TLS. Modern deployments commonly use TLS 1.3, although actual support depends on both peers.
+
+A simplified TLS 1.3 exchange looks like:
 
 ```text
-ARP Reply
-  Sender MAC:  aa:bb:cc:dd:ee:fe
-  Sender IP:   192.168.1.1
-  Target MAC:  aa:bb:cc:dd:ee:01
-  Target IP:   192.168.1.10
+Client                                 Server
+  | -------- ClientHello ------------> |
+  | <------- ServerHello ------------- |
+  | <------- EncryptedExtensions ----- |
+  | <------- Certificate / Verify ---- |
+  | <------- Finished ---------------- |
+  | -------- Finished ----------------> |
+  |          Encrypted traffic         |
 ```
 
-После этого IP-пакет можно вложить в Ethernet-кадр и отправить на MAC-адрес следующего узла. При использовании IPv6 вместо ARP применяется Neighbor Discovery (NDP).
+The client advertises supported capabilities and key-share material. The server selects parameters and proves its identity with a certificate chain and a signature. The browser validates the certificate's hostname, trust chain, validity, and applicable security policies.
 
-### Передача DNS-запроса
+The handshake produces shared traffic keys. Actual page data is then protected using authenticated encryption, which provides confidentiality and integrity.
 
-Операционная система создаёт UDP-пакет или использует выбранный защищённый транспорт. Пакет помещается в IP, а IP — в кадр канального уровня. Сетевой адаптер преобразует данные в физический сигнал по Ethernet, Wi-Fi или другой технологии.
+Some resumed sessions can shorten setup. TLS 1.3 also supports 0-RTT early data in specific resumption scenarios, subject to replay-safety restrictions. QUIC integrates TLS 1.3 into its transport handshake rather than running TLS as a separate record layer on top of TCP.
 
-Маршрутизаторы на пути анализируют IP-адрес назначения и передают пакет следующему узлу. Каждый маршрутизатор уменьшает IPv4 TTL или IPv6 Hop Limit; при достижении нуля пакет отбрасывается. Для выбора маршрутов между автономными системами интернет-операторы используют, в частности, BGP.
+## Dealing with lost packets
 
-DNS-ответ возвращается клиенту. Теперь у браузера есть IP-адрес сервера, к которому можно подключиться.
+The Internet does not guarantee that every packet will arrive. Congestion, radio interference, damaged links, or queue drops can cause loss.
 
-## Создание сокета и TCP-соединения
+TCP tracks acknowledged data and retransmits missing segments as needed. Duplicate acknowledgments and retransmission timers help detect loss. Modern TCP implementations may use selective acknowledgments and sophisticated loss-recovery algorithms.
 
-Для HTTPS по TCP обычно используется порт `443`, для HTTP — `80`. Операционная система создаёт сокет, например с параметрами:
+TCP also adapts how much data it sends to the receiver's window and its estimate of network congestion. A packet loss event may reduce throughput, but not every loss requires restarting the connection.
 
-```c
-socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-```
+QUIC implements its own acknowledgment, loss detection, and recovery mechanisms over UDP. Its independently delivered streams can avoid some transport-level head-of-line blocking across streams that occurs with HTTP/2 over TCP.
 
-`AF_INET` указывает на IPv4; для IPv6 используется `AF_INET6`. `SOCK_STREAM` соответствует потоковому сокету, обычно с TCP.
+## Speaking HTTP
 
-После выбора локального IP-адреса и временного порта клиент инициирует **трёхстороннее TCP-рукопожатие**:
-
-```text
-Клиент                                      Сервер
-   |                                          |
-   | ---------------- SYN -----------------> |
-   | <------------- SYN + ACK -------------- |
-   | ---------------- ACK -----------------> |
-   |                                          |
-   |         Соединение установлено           |
-```
-
-- `SYN`: клиент предлагает установить соединение и объявляет начальный номер последовательности.
-- `SYN + ACK`: сервер подтверждает запрос и сообщает собственный начальный номер последовательности.
-- `ACK`: клиент подтверждает ответ сервера.
-
-TCP обеспечивает упорядоченную передачу байтов. Номера последовательности `SEQ`, подтверждения `ACK`, окна приёма и механизмы повторной передачи позволяют обнаруживать пропуски и ограничивать нагрузку.
-
-Для завершения соединения обычно применяются `FIN` и `ACK` с обеих сторон; при аварийном сбросе может использоваться `RST`.
-
-**Важно:** не каждый современный HTTPS-сеанс использует TCP. HTTP/3 работает поверх QUIC, который использует UDP и собственные механизмы установления соединения, надёжности и управления потоком. Далее рассмотрен классический путь TCP + TLS.
-
-## Установка защищённого соединения TLS
-
-TLS (*Transport Layer Security*) обеспечивает шифрование и проверку подлинности сервера.
-
-В современном варианте TLS 1.3 взаимодействие в общих чертах выглядит так:
-
-1. Клиент отправляет `ClientHello` со списком поддерживаемых версий TLS, криптографических алгоритмов, параметрами обмена ключами и расширениями, включая `SNI` и часто `ALPN`.
-2. Сервер отвечает `ServerHello`, выбирает совместимые параметры и участвует в согласовании общих секретов.
-3. Сервер передаёт сертификат и доказательство владения соответствующим закрытым ключом.
-4. Клиент проверяет цепочку сертификатов, срок действия, соответствие имени сайта и другие требования доверия.
-5. Стороны обмениваются подтверждениями `Finished`, после чего могут передавать защищённые данные приложения.
-
-В TLS 1.3 для обычного полного обмена ключами используются современные схемы согласования общего секрета, например (EC)DHE. Описываемая иногда в старых статьях схема «клиент зашифровал случайное число открытым RSA-ключом сервера, а сервер расшифровал его» относится к историческим вариантам TLS и не описывает обычный TLS 1.3.
-
-Симметричные сеансовые ключи позволяют эффективно шифровать HTTP-данные. Содержимое запроса недоступно обычным промежуточным маршрутизаторам, хотя некоторые метаданные соединения могут оставаться наблюдаемыми.
-
-## Что происходит при потере пакета
-
-Пакеты не всегда доходят до адресата. Причины включают перегрузку, ошибки передачи, переполненные очереди, сбои радиоканала и проблемы оборудования.
-
-TCP отслеживает подтверждения получения данных. При обнаружении потери недостающие сегменты могут быть переданы повторно, а алгоритм управления перегрузкой регулирует скорость передачи.
-
-Типичная схема включает:
-
-- **Slow Start:** окно перегрузки (`cwnd`) сначала растёт быстро, пока сеть не покажет ограничения.
-- **Congestion Avoidance:** после достижения порога рост становится осторожнее.
-- **Обнаружение потерь:** повторные подтверждения, тайм-ауты и другие признаки помогают установить, что данные могли потеряться.
-- **Снижение нагрузки:** отправитель уменьшает объём неподтверждённых данных в соответствии с выбранным алгоритмом.
-
-Используются различные алгоритмы, например CUBIC или BBR; правила их работы отличаются. В QUIC восстановление потерь и управление перегрузкой реализуются поверх UDP.
-
-## Протокол HTTP
-
-Когда соединение готово, браузер отправляет запрос к ресурсу. Для HTTP/1.1 он может выглядеть так:
+With transport and security established, the browser sends an HTTP request. In a human-readable HTTP/1.1 representation, it might resemble:
 
 ```http
 GET / HTTP/1.1
 Host: google.com
 User-Agent: ExampleBrowser/1.0
 Accept: text/html
-Connection: keep-alive
-
+Accept-Language: en
 ```
 
-`GET /` означает запрос корневого ресурса. Заголовок `Host` указывает имя сайта: на одном IP-адресе могут обслуживаться разные виртуальные хосты.
+The real headers depend on the browser, its settings, cookies, caching state, and request context. HTTP/2 and HTTP/3 encode requests differently, with binary framing and header compression, so they do not literally put that HTTP/1.1 text onto the wire.
 
-После заголовков идёт пустая строка, завершающая секцию заголовков. Для такого запроса тело обычно не требуется.
+The browser can negotiate an HTTP version via TLS ALPN. It may also learn that HTTP/3 is available through advertised alternatives.
 
-Сервер отвечает, например:
+A response contains a status, metadata, and possibly a body:
 
 ```http
 HTTP/1.1 200 OK
@@ -326,187 +298,180 @@ Content-Type: text/html; charset=UTF-8
 Cache-Control: private
 
 <!doctype html>
-<html lang="ru">
-  <head><title>Пример</title></head>
-  <body>...</body>
-</html>
+<html>...</html>
 ```
 
-`200 OK` означает успешную обработку. Другие типичные ответы — `301`/`302` для перенаправления, `304` для использования сохранённой версии, `404` при отсутствии ресурса и `500` при внутренней ошибке сервера.
+Depending on the request, the server may instead send a redirect, a cached response indicator, a compressed representation, or an error. Content encoding and transfer framing are separate details, and HTTPS encrypts the transmitted HTTP data.
 
-HTTP/2 кодирует заголовки и данные в двоичные кадры и позволяет нескольким запросам использовать одно соединение. HTTP/3 решает похожие задачи поверх QUIC. Независимо от версии HTTP браузеру ещё предстоит разобрать полученный документ и загрузить вложенные ресурсы.
+## Handling the request on a web server
 
-## Обработка запроса веб-сервером
+The server-side path is not necessarily one process on one machine.
 
-На принимающей стороне соединение может завершаться на балансировщике, обратном прокси, CDN или непосредственно на сервере приложения. Конкретная архитектура Google существенно сложнее примитивной схемы «один сервер — один HTML-файл».
+A DNS answer may lead to an edge endpoint or load balancer. Incoming traffic can pass through a reverse proxy, TLS termination layer, request router, cache, and application services before any HTML is generated.
 
-Веб-сервер или прокси:
-
-1. Принимает запрос и определяет метод (`GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE` и другие).
-2. Анализирует имя хоста, путь, параметры, заголовки и при необходимости тело запроса.
-3. Проверяет правила маршрутизации, ограничения доступа, защиту от злоупотреблений и другие политики.
-4. Выбирает обработчик: готовый статический файл, кэшированную страницу или серверное приложение.
-5. Формирует HTTP-ответ с кодом состояния и необходимыми заголовками.
-6. Отправляет клиенту данные, иногда сжатыми или разбитыми на последовательность частей.
-
-В простых веб-приложениях запрос может обрабатываться Apache, nginx или IIS; в крупных инфраструктурах между клиентом и приложением обычно работает несколько специализированных слоёв.
-
-Если ответ содержит HTML-ссылки на CSS, JavaScript, изображения и шрифты, браузер инициирует дополнительные запросы. Для ресурсов на других доменах могут повториться этапы DNS и установления соединений.
-
-## Что происходит внутри браузера
-
-Полученные данные ещё не являются изображением страницы. Браузеру предстоит превратить текст разметки, стили, сценарии и графические ресурсы в набор пикселей.
-
-Упрощённый конвейер:
+A possible flow is:
 
 ```text
-HTML ──> DOM ────────────────┐
-                             ├──> Вычисление стилей
-CSS ──> CSSOM ───────────────┘           |
-                                         v
-                                  Layout / геометрия
-                                         |
-                                         v
-                                  Paint / рисование
-                                         |
-                                         v
-                                  Compositing / слои
-                                         |
-                                         v
-                                    Экран / GPU
+Internet
+   |
+   v
+Edge / load balancer
+   |
+   v
+TLS and HTTP endpoint
+   |
+   +--> Cache
+   |
+   +--> Application / backend services
+                |
+                +--> Databases and storage
+   |
+   v
+HTTP response
 ```
 
-JavaScript способен изменять DOM, стили и состояние страницы на разных этапах, вызывая повторные вычисления.
+The application may check cookies, session state, user preferences, localization settings, experiment assignments, and request parameters. It might assemble HTML dynamically or serve a cached representation.
 
-## Архитектура браузера
+A service as large as Google operates distributed infrastructure, but its internal production implementation cannot be inferred simply from a browser request. This diagram illustrates common web-server architecture, not a claim about a specific proprietary request path.
 
-Браузер состоит из нескольких взаимодействующих подсистем:
+## What happens inside the browser
 
-- **Пользовательский интерфейс:** адресная строка, вкладки, кнопки навигации, меню и настройки.
-- **Механизм управления браузером:** открытие вкладок, история, разрешения, распределение процессов и взаимодействие компонентов.
-- **Сетевой стек:** DNS, соединения, прокси, HTTP, кэш, управление cookies и сетевой безопасностью.
-- **Движок рендеринга:** разбор HTML и CSS, вычисление стилей, размещение элементов и подготовка изображения.
-- **Движок JavaScript:** выполнение сценариев и работа с объектами страницы.
-- **Графическая подсистема:** растеризация, слои, композиция и взаимодействие с GPU.
-- **Хранилища данных:** cookies, Cache Storage, IndexedDB, localStorage и другие механизмы.
+As data arrives, the browser can process it incrementally instead of waiting for every byte to download.
 
-Современные браузеры часто используют несколько процессов и изоляцию сайтов: вкладка, рендерер, сеть и GPU могут выполняться в разных процессах. Это повышает устойчивость и безопасность, но требует обмена сообщениями между ними.
+The response headers determine the content type, caching behavior, security rules, and sometimes character encoding. The browser begins parsing HTML and can discover additional resources: style sheets, scripts, fonts, images, and more.
 
-## Разбор HTML
+Each resource has its own rules for priority, cache lookup, same-origin checks, CORS where applicable, and network retrieval. Some resources may share an established connection; others may come from local cache or separate origins.
 
-Получая HTML-данные, браузер передаёт их парсеру. Тот выполняет две тесно связанные операции:
+At the same time, a previous page's state may be discarded or preserved depending on navigation behavior and back-forward caching.
 
-1. **Токенизация:** преобразование потока символов в токены — открывающие и закрывающие теги, текст и другие конструкции.
-2. **Построение дерева:** создание узлов DOM (*Document Object Model*) и связывание их по правилам HTML.
+## Browser architecture
 
-Например:
+Modern browsers commonly separate responsibilities across multiple processes, although the exact layout differs by browser and platform.
+
+Typical roles include:
+
+- A **browser process** that coordinates tabs, navigation, permissions, and parts of the UI.
+- **Renderer processes** responsible for web content, DOM, style, layout, and JavaScript execution.
+- A **network service** that handles requests, caching, connections, and protocol machinery.
+- A **GPU process** or graphics subsystem that manages rendering resources and compositing tasks.
+
+Process isolation and sandboxing help limit the damage that untrusted web content can cause. Site isolation policies influence which documents may share a renderer process.
+
+None of these boundaries implies that every individual operation always happens in a separate process or thread.
+
+## Parsing HTML
+
+The browser decodes the response body and tokenizes the HTML stream. Tokens drive a tree-building algorithm that constructs the **Document Object Model**, or DOM.
+
+Consider:
 
 ```html
-<html>
-  <body>
-    <h1>Привет!</h1>
-    <p>Страница загрузилась.</p>
-  </body>
+<!doctype html>
+<html lang="en">
+  <head><title>Example</title></head>
+  <body><h1>Hello, world!</h1></body>
 </html>
 ```
 
-Превращается в логическую структуру:
+Conceptually, the resulting tree contains a document node with `html`, `head`, and `body` descendants. The browser also handles malformed markup according to HTML parsing rules; it does not simply reject a page because tags are missing.
 
-```text
-Document
-└── html
-    └── body
-        ├── h1
-        │   └── "Привет!"
-        └── p
-            └── "Страница загрузилась."
-```
+Scripts can change the DOM while parsing is underway. Certain classic scripts may block the HTML parser; `async`, `defer`, and module loading change execution timing and dependencies.
 
-HTML-парсер рассчитан даже на некорректную разметку. Он применяет специальные правила восстановления ошибок, поэтому большинство синтаксических проблем не приводят к полной остановке загрузки.
+The DOM represents document structure, not the final pixels displayed on the screen.
 
-Скрипты могут изменить документ во время разбора. Например, классический `document.write()` способен добавлять разметку в текущий поток; обычные блокирующие скрипты могут временно приостанавливать парсер. Скрипты с `defer` и модули имеют другие правила выполнения.
+## Processing CSS
 
-После построения документа происходят события жизненного цикла, в частности `DOMContentLoaded` и позднее `load`, когда выполнены соответствующие условия загрузки. Они не означают, что на странице больше никогда не произойдёт изменений.
+CSS describes how elements should look and participate in layout. The browser parses style sheets, matches selectors to elements, and calculates styles using the cascade, inheritance, specificity, and applicable user-agent rules.
 
-## Обработка CSS
-
-Браузер читает таблицы стилей из внешних файлов, элементов `<style>` и атрибутов `style`. Правила разбираются в структурированное представление, а селекторы сопоставляются с DOM-элементами.
-
-При вычислении итогового оформления учитываются:
-
-- происхождение правил и CSS-каскад;
-- специфичность селекторов;
-- порядок объявления;
-- наследуемые свойства;
-- пользовательские переменные, медиаусловия и значения по умолчанию.
-
-Например:
+For example:
 
 ```css
-body {
-  font-family: sans-serif;
-}
-
 h1 {
-  color: #1660a5;
-  margin: 0 0 16px;
+  color: #1764aa;
+  font-size: 2rem;
+  margin: 1rem 0;
 }
 ```
 
-В итоге браузер знает не просто «это заголовок», а каким шрифтом его рисовать, какого он цвета, какие отступы нужны и как он участвует в расположении остальных элементов.
+Not every DOM node becomes a visible box. A node with `display: none` contributes no layout box, while pseudo-elements may generate boxes without corresponding DOM elements.
 
-## Формирование изображения страницы
+The browser builds the internal structures needed for layout and painting. You may see these described informally as a render tree, although actual engine data structures are more complex.
 
-После разбора документа и вычисления стилей браузер определяет геометрию элементов.
+Fonts, viewport dimensions, device pixel ratio, media queries, and writing direction all influence the eventual appearance.
 
-### Layout — расчёт расположения
+## Rendering the page
 
-Для элементов вычисляются размеры, координаты, отступы и взаимное расположение. На результат влияют поток документа, перенос строк, flexbox, grid, позиционирование, ограничения по размерам и другие правила CSS.
+Rendering is often described as three broad phases: **layout**, **paint**, and **compositing**. Engines optimize these phases heavily, and the details vary.
 
-Например, ширина текстового блока влияет на количество строк, а количество строк — на его высоту. Изменение размеров окна может потребовать пересчитать всю сетку страницы или её часть.
+### Layout: computing geometry
 
-### Paint — подготовка команд рисования
+The engine decides how large boxes are and where they belong. It resolves available widths, line breaking, positioning, flex and grid constraints, margins, overflow, and other layout rules.
 
-Следующий этап определяет, что нужно рисовать: фон, рамки, текст, изображения, тени и другие визуальные элементы. Команды группируются так, чтобы можно было эффективно отобразить страницу.
+A change in an element's dimensions can force part of the layout to be recalculated. Engines try to limit such work to affected portions of the document.
 
-### Compositing — объединение слоёв
+### Paint: describing what to draw
 
-Часть элементов может быть вынесена на отдельные композиционные слои. Это позволяет, например, перемещать или анимировать слой без полной перерисовки всего документа.
+The engine produces drawing commands for visible content: backgrounds, borders, text, images, shadows, and other visual effects.
 
-Браузер переиспользует результаты предыдущих расчётов, когда это возможно. Поэтому изменение только одного элемента не всегда заставляет пересчитывать страницу целиком.
+Painting does not mean the CPU individually changes every pixel on the monitor. Commands and intermediate representations are prepared for rasterization and composition.
 
-## Работа графического процессора
+### Compositing: combining layers
 
-На этапе растеризации и композиции часть задач выполняет CPU, а часть — GPU. Графический процессор особенно эффективен там, где нужно параллельно обработать множество графических операций.
+Some elements or paint chunks may be promoted into independently composited layers. This can make operations such as scrolling, transforms, and opacity changes cheaper than repainting the full page.
 
-Браузер передаёт графические команды через соответствующие API и драйверы. В разных системах могут использоваться Direct3D, OpenGL, Vulkan, Metal или промежуточные графические библиотеки.
+Layers are rasterized as necessary and combined into a final scene. Which elements receive separate layers is an implementation detail, not a fixed CSS rule.
 
-GPU обрабатывает команды, работает с текстурами и поверхностями, объединяет слои и формирует изображение, которое предстоит показать пользователю.
+## The graphics processor
 
-Важно: **нажатие Enter само по себе не означает прерывание непосредственно на видеокарте**. Ввод клавиатуры и графический вывод — разные цепочки событий, которые взаимодействуют через операционную систему и браузер.
+The GPU helps rasterize or composite graphical content, process textures, transform geometry, and render the final image efficiently. Exactly how much work runs on the GPU depends on the browser, drivers, operating system, and feature configuration.
 
-## Оконный менеджер и вывод на экран
+A rough pipeline is:
 
-Результат работы браузера должен стать частью общего изображения рабочего стола. Этим управляет оконная система и её композитор.
+```text
+DOM + CSS
+    |
+    v
+Style and layout
+    |
+    v
+Paint commands
+    |
+    v
+Rasterized surfaces / textures
+    |
+    v
+GPU composition
+    |
+    v
+Window surface / framebuffer
+```
 
-Композитор объединяет содержимое окна браузера с другими окнами, панелями интерфейса, курсором и системными эффектами. Затем подготовленный кадр передаётся подсистеме вывода изображения.
+Graphics APIs such as Direct3D, Metal, Vulkan, or OpenGL may participate, directly or through browser abstraction layers. The GPU's command processor runs work submitted by the system, and display hardware later scans out completed image buffers.
 
-Контроллер дисплея считывает необходимые данные и передаёт видеосигнал монитору. Дисплей обновляет пиксели в соответствии со своей технологией, частотой обновления и режимом работы.
+The exact implementation may use multiple buffers and synchronized presentation. A GPU does not independently decide what the web page means: the browser's layout and rendering machinery establishes that structure first.
 
-И вот вы видите страницу Google. Но процесс ещё не закончился.
+## The window compositor and display
 
-## Что происходит после загрузки
+The browser's completed surface is generally not the only thing on screen. The desktop also has window decorations, the cursor, other applications, and system overlays.
 
-После первого отображения браузер продолжает работать:
+On Windows, the Desktop Window Manager participates in compositing. On macOS, the WindowServer and associated graphics infrastructure manage on-screen presentation. With Wayland, the compositor coordinates window surfaces and output; with X11, a separate compositor may be used.
 
-- выполняет JavaScript по таймерам и событиям;
-- реагирует на ввод в поисковой строке;
-- получает подсказки и другие данные по сети;
-- обновляет DOM и CSS;
-- пересчитывает геометрию изменённых элементов;
-- перерисовывает нужные области и объединяет графические слои;
-- сохраняет или обновляет кэш, cookies и другие данные в соответствии с правилами безопасности.
+The resulting frame reaches the display pipeline. Depending on the display technology, the screen refreshes pixels by driving LCD subpixels and their backlight, or individual OLED emitters.
 
-Любое дальнейшее действие — движение мыши, прокрутка, ввод символа или открытие новой ссылки — запускает новые последовательности событий.
+Refresh rate, display synchronization, buffering, and input-to-photon latency affect when you actually see the change. The visual result arrives only after all the necessary upstream work has happened.
 
-И всё это началось с одного нажатия `Enter`.
+## After the page loads
+
+A displayed page is not necessarily a finished page. It may still:
+
+- download images, fonts, scripts, or deferred resources;
+- execute JavaScript and react to timers or user input;
+- initiate additional API requests;
+- update DOM and CSS state;
+- recompute layout and repaint changed content;
+- composite new frames;
+- update cookies, caches, and other storage according to browser security rules.
+
+Every new interaction—moving the pointer, scrolling, typing, or opening another link—can start fresh chains of input events, application logic, network traffic, and graphics work.
+
+And all of this began with a single press of `Enter`.
